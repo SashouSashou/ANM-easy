@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, date, time
 import pandas as pd
+from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import os
 import requests  # Pour interagir avec l'API CBIP
