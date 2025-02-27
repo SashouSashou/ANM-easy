@@ -3,11 +3,102 @@ from datetime import datetime, date, time
 import pandas as pd
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import simpleSplit
+from reportlab.platypus import Paragraph
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 import os
 import requests  # Pour interagir avec l'API CBIP
 
 # Configuration de la page
 st.set_page_config(page_title="Gestion des Patients", layout="wide")
+
+#Fonction pour générer Conseils Patients 
+def generate_hygiene_pdf(data, filename):
+    c = canvas.Canvas(filename, pagesize=letter)
+    width, height = letter
+    styles = getSampleStyleSheet()
+    style_normal = styles['Normal']
+    style_normal.fontSize = 12
+    style_normal.leading = 14
+    style_normal.textColor = colors.black
+
+    style_bold = ParagraphStyle(
+        name='Bold',
+        fontSize=14,
+        leading=18,
+        textColor=colors.black,
+        spaceAfter=10,
+        spaceBefore=10,
+        bold=True
+    )
+
+    def draw_paragraph(text, x, y, bold=False):
+        style = style_bold if bold else style_normal
+        p = Paragraph(text, style)
+        w, h = p.wrap(width - 2 * x, y)
+        if y - h < 30:
+            c.showPage()
+            y = height - 30
+        p.drawOn(c, x, y - h)
+        return y - h - 5
+
+    y = height - 30
+    y = draw_paragraph("Conseils d’hygiène bucco-dentaire dans les cabinets Sashou", 72, y, bold=True)
+    y = draw_paragraph(f"Date d'aujourd'hui: {data.get('Date d\'aujourd\'hui', '')}", 72, y, bold=True)
+    y = draw_paragraph(f"Nom et Prénom: {data.get('Nom et Prénom', '')}", 72, y, bold=True)
+    y = draw_paragraph(f"Prochain Rendez-vous: {data.get('Prochain Rendez-vous', '')}", 72, y, bold=True)
+    y = draw_paragraph(f"Praticien: {data.get('Praticien', '')}", 72, y, bold=True)
+
+    if data.get("IHO Technique de brossage"):
+        y = draw_paragraph("Méthode de brossage adaptée à vos besoins:", 72, y, bold=True)
+        technique = data.get("IHO Technique de brossage", "")
+        technique_texts = {
+            "Bass": "Placer la brosse à 45° par rapport à l’axe vertical de la dent. Diriger une rangée de poils dans le sillon gingivo-dentaire. Exercer une légère pression et effectuer une série de petites vibrations horizontales, sans sortir du sillon. Pour les faces L et P, placer la brosse verticalement. Travailler avec le milieu ou l’arrière de la brosse. Effectuer le même mouvement dent par dent.",
+            "Bass modifié": "Placer la brosse à 45° par rapport à l’axe vertical de la dent. Diriger une rangée de poils dans le sillon gingivo-dentaire. Exercer une légère pression et effectuer une série de petites vibrations horizontales, sans sortir du sillon. Terminer par une rotation LENTE d’un quart de tour en direction des cuspides. Pour les faces L et P, idem que pour la Bass.",
+            "45° Circulaire": "Placer la brosse à 45° par rapport à l’axe vertical de la dent, poils en direction du sillon, à cheval entre le bord marginal de la gencive et le bord cervical de la dent. Exercer une légère pression, afin que les poils s’adaptent à la forme de la dent et s’immiscent le plus possible dans la zone interdentaire. Effectuer une série de petits cercles d’une amplitude de 1-2mm, en restant bien sur le même groupe de dents. Veiller à bien maintenir la régularité d’amplitude de PETITS mouvements! Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
+            "45° Circulaire chassé": "Placer la brosse à 45° par rapport à l’axe vertical de la dent, poils en direction du sillon, à cheval entre le bord marginal de la gencive et le bord cervical de la dent. Exercer une légère pression, afin que les poils s’adaptent à la forme de la dent et s’immiscent le plus possible dans la zone interdentaire. Effectuer une série de petits cercles d’une amplitude de 1-2mm, en restant bien sur le même groupe de dents. Veiller à bien maintenir la régularité d’amplitude de PETITS mouvements! Terminer par une rotation LENTE d’un quart de tour en direction des cuspides. Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
+            "Rolling stroke ou Roll": "Placer la brosse à dent parallèlement à l’axe vertical de la dent, les poils en direction apicale. Appuyer le côté des poils sur la gencive marginale et le bord cervical de la dent. Exercer une une légère pression contre la gencive et effectuer une rotation de la brosse d’un quart de tour. Répéter le mouvement 3 ou 4 fois sur les mêmes dents avant de changer de zone. Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
+            "Stillman’s": "Placer la brosse à 45°, poils en direction apicale et à cheval entre le bord marginal de la gencive et le bord cervical de la dent. La gencive blanchit sous la pression effectuée. Effectuer une série de petites vibrations horizontales en parcourant lentement la couronne et en faisant lentement une rotation de la brosse d’un quart de tour en maintenant la pression et les vibrations jusqu’aux cuspides. Répéter le mouvement 3-4 fois. Pour les faces L et P, placer la brosse verticalement et travailler dent par dent.",
+            "Charter’s": "Placer la brosse à dent à 45° par rapport à l’axe vertical de la dent, les poils orientés en direction des cuspides. Appuyer le côté des poils sur la gencive attachée et sur la partie cervicale de la dent. La gencive doit blanchir sous la pression effectuée. Effectuer ces pressions et relâchant par à-coup. Faces L et P - méthode difficile à réaliser pour ces zones.",
+            "90° Circulaire": "Placer la brosse à dents 90° par rapport à l’axe verticale de la dent. Les poils sont sur la couronne de la dent à la limite de la gencive.",
+            "Brossage électrique": "La brosse à dent doit rester sur la surface dentaire pendant 1 à 3 secondes."
+        }
+        y = draw_paragraph(technique_texts.get(technique, data.get("Autre technique de brossage", "")), 72, y)
+
+    if data.get("Bain de bouche"):
+        y = draw_paragraph("Bain de bouche:", 72, y, bold=True)
+        if "CHX" in data.get("Bain de bouche", ""):
+            y = draw_paragraph(f"Je vous conseille d’utiliser un bain de bouche perio Aid. 0.12% trouvable en pharmacie pendant une durée limitée de {data.get('CHX - Combien de jours')}.", 72, y)
+        if "O2" in data.get("Bain de bouche", ""):
+            y = draw_paragraph(f"Je vous conseille d’utiliser un bain de bouche à base d’eau oxygénée trouvable en pharmacie pendant une durée limitée de {data.get('O2 - Combien de jours')}.", 72, y)
+        if "Autre" in data.get("Bain de bouche", ""):
+            y = draw_paragraph(data.get("Autre bain de bouche", ""), 72, y)
+
+    if data.get("Conseil de dentifrice"):
+        y = draw_paragraph("Conseil de dentifrice:", 72, y, bold=True)
+        y = draw_paragraph(data.get("Conseil de dentifrice", ""), 72, y)
+
+    if data.get("Produits d'hygiène"):
+        y = draw_paragraph("Autre produits d'hygiène:", 72, y, bold=True)
+        hygiene_products = data.get("Produits d'hygiène")
+        if hygiene_products and "Elmex Gel" in hygiene_products:
+            y = draw_paragraph("L’elmex gel trouvable en pharmacie est à utiliser 1x par semaine, à utiliser après le brossage. Appliquer +/- 1g sur le doigt et mettre sur toutes les dents et attendre 2 à 3 min en crachant bien sans rincer.", 72, y)
+        if hygiene_products and "Autre" in hygiene_products:
+            y = draw_paragraph(data.get("Autre produits d'hygiène", ""), 72, y)
+
+    if data.get("Espaces Interdentaires Maxillaire") or data.get("Espaces Interdentaires Mandibulaire"):
+        y = draw_paragraph("Espace interdentaire:", 72, y, bold=True)
+        y = draw_paragraph("Il est conseillé d’utiliser des brosses interdentaires au moins le soir et tous les jours, celles-ci doivent être changées tous les 10 jours et rester à l’air libre pour qu’elles puissent sécher.", 72, y)
+        maxillaire = data.get("Espaces Interdentaires Maxillaire", "").split("\n")
+        mandibulaire = data.get("Espaces Interdentaires Mandibulaire", "").split("\n")
+        for line in maxillaire:
+            y = draw_paragraph(line, 72, y)
+        for line in mandibulaire:
+            y = draw_paragraph(line, 72, y)
+
+    c.drawString(72, 40, "Les cabinets Sashou")
+    c.save()
 
 # Fonction pour générer un PDF
 def generate_pdf(data, filename):
@@ -15,8 +106,21 @@ def generate_pdf(data, filename):
     c.drawString(72, 750, "Rapport Patient")
     y = 730
     for key, value in data.items():
-        c.drawString(72, y, f"{key}: {value}")
-        y -= 15
+        if key in ["Espaces Interdentaires Maxillaire", "Espaces Interdentaires Mandibulaire"]:
+            c.drawString(72, y, f"{key}:")
+            y -= 15
+            for line in value.split("\n"):
+                if y < 40:  # Check if we need to create a new page
+                    c.showPage()
+                    y = 750
+                c.drawString(72, y, line)
+                y -= 15
+        else:
+            if y < 40:  # Check if we need to create a new page
+                c.showPage()
+                y = 750
+            c.drawString(72, y, f"{key}: {value}")
+            y -= 15
     c.save()
 
 # Fonction pour calculer l'âge
@@ -115,6 +219,7 @@ def prepare_data():
         "IO": io_details if io == "Suspicion" and io_details else None,
         "Overbite": f"{overbite} - {overbite_value} mm" if overbite and overbite in ["Léger", "Moyen", "Important"] and overbite_value else None,
         "Overjet": f"{overjet} - {overjet_value} mm" if overjet and overjet in ["Léger", "Moyen", "Important"] and overjet_value else None,
+	"Usures dentaires": usures_details if usures_details else None,
         "Classe d'angle": classe_angle if classe_angle else None,
         "Articulé Croisé": ", ".join(articule_croise) if articule_croise else None,
         "POST Options": post_options if "POST" in articule_croise else None,
@@ -143,7 +248,8 @@ def prepare_data():
         "O2 - Combien de jours": o2_days if "O2" in bain_bouche and o2_days else None,
         "Autre bain de bouche": autre_text if "Autre" in bain_bouche and autre_text else None,
         "Conseil de dentifrice": conseil_dentifrice if conseil_dentifrice else None,
-
+	"Produits d'hygiène": ", ".join(hygiene_products) if hygiene_products else None,
+        "Autre produits d'hygiène": other_hygiene_product if "Autre" in hygiene_products and other_hygiene_product else None,
     
 
 
@@ -327,6 +433,75 @@ with tab6:
         post_options = st.selectbox("POST Options", ["Droit", "Gauche", "Bilatéral", "Autre"])
         if post_options == "Autre":
             post_autre_details = st.text_input("Précisez (Autre POST)")
+    # Existing code for Onglet 6...
+
+    # New section Usures dentaires
+    st.write("### Usures dentaires")
+    usures_choices = st.multiselect("Choix Usures dentaires", ["Abrasion", "Attrition", "Érosion", "Abfraction", "Autre"])
+
+    usures_details = {}
+
+    if "Abrasion" in usures_choices:
+        abrasion_sexts = st.multiselect("Abrasion Sextants", ["Sext 1", "Sext 2", "Sext 3", "Sext 4", "Sext 5", "Sext 6", "Autre"])
+        if "Autre" in abrasion_sexts:
+            usures_details["Abrasion Autre"] = st.text_input("Précisez (Abrasion)")
+        for sext in ["Sext 1", "Sext 2", "Sext 3"]:
+            if sext in abrasion_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Colet dentaire V", "Colet dentaire P", "Autre"])
+                if "Autre" in usures_details[sext]:
+                    usures_details[f"{sext} Autre"] = st.text_input(f"Précisez ({sext} - Autre)")
+        for sext in ["Sext 4", "Sext 5", "Sext 6"]:
+            if sext in abrasion_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Colet dentaire V", "Colet dentaire L", "Autre"])
+                if "Autre" in usures_details[sext]:
+                    usures_details[f"{sext} Autre"] = st.text_input(f"Précisez ({sext} - Autre)")
+
+    if "Attrition" in usures_choices:
+        attrition_sexts = st.multiselect("Attrition Sextants", ["Sext 1", "Sext 2", "Sext 3", "Sext 4", "Sext 5", "Sext 6", "Autre"])
+        if "Autre" in attrition_sexts:
+            usures_details["Attrition Autre"] = st.text_input("Précisez (Attrition)")
+        for sext in ["Sext 1", "Sext 2", "Sext 3"]:
+            if sext in attrition_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Occlusales", "Bord incisif", "Autre"])
+                if "Autre" in usures_details[sext]:
+                    usures_details[f"{sext} Autre"] = st.text_input(f"Précisez ({sext} - Autre)")
+
+    if "Érosion" in usures_choices:
+        erosion_sexts = st.multiselect("Érosion Sextants", ["Sext 1", "Sext 2", "Sext 3", "Sext 4", "Sext 5", "Sext 6", "Autre"])
+        if "Autre" in erosion_sexts:
+            usures_details["Érosion Autre"] = st.text_input("Précisez (Érosion)")
+        for sext in ["Sext 1", "Sext 2", "Sext 3"]:
+            if sext in erosion_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Vestibulaire", "Palatin", "Autre"])
+                if "Autre" in usures_details[sext]:
+                    usures_details[f"{sext} Autre"] = st.text_input(f"Précisez ({sext} - Autre)")
+        for sext in ["Sext 4", "Sext 5", "Sext 6"]:
+            if sext in erosion_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Vestibulaire", "Lingual", "Autre"])
+                if "Autre" in usures_details[sext]:
+                    usures_details[f"{sext} Autre"] = st.text_input(f"Précisez ({sext} - Autre)")
+
+    if "Abfraction" in usures_choices:
+        abfraction_sexts = st.multiselect("Abfraction Sextants", ["Sext 1", "Sext 2", "Sext 3", "Sext 4", "Sext 5", "Sext 6", "Autre"])
+        if "Autre" in abfraction_sexts:
+            usures_details["Abfraction Autre"] = st.text_input("Précisez (Abfraction)")
+        for sext in ["Sext 1", "Sext 2", "Sext 3"]:
+            if sext in abfraction_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Colet", "Autre"])
+                if "Colet" in usures_details[sext]:
+                    usures_details[f"{sext} Colet"] = st.multiselect(f"{sext} Colet Choix", ["Vestibulaire", "Palatin", "Autre"])
+                    if "Autre" in usures_details[f"{sext} Colet"]:
+                        usures_details[f"{sext} Colet Autre"] = st.text_input(f"Précisez ({sext} Colet - Autre)")
+        for sext in ["Sext 4", "Sext 5", "Sext 6"]:
+            if sext in abfraction_sexts:
+                usures_details[sext] = st.multiselect(f"{sext} Choix", ["Colet", "Autre"])
+                if "Colet" in usures_details[sext]:
+                    usures_details[f"{sext} Colet"] = st.multiselect(f"{sext} Colet Choix", ["Vestibulaire", "Lingual", "Autre"])
+                    if "Autre" in usures_details[f"{sext} Colet"]:
+                        usures_details[f"{sext} Colet Autre"] = st.text_input(f"Précisez ({sext} Colet - Autre)")
+
+    if "Autre" in usures_choices:
+        usures_details["Autre"] = st.text_input("Précisez (Autre Usures dentaires)")
 
     # Nouvelle section RX
     st.write("### RX")
@@ -838,9 +1013,32 @@ with tab7:
         "Bass", "Bass modifié", "45° Circulaire", "45° Circulaire chassé", "Rolling stroke ou Roll",
         "Stillman’s", "Charter’s", "90° Circulaire", "Appareil orthodontique 3 phases", "Brossage électrique"
     ]
-    technique = st.selectbox("Technique de brossage", technique_options)
+    technique = st.selectbox("Technique de brossage", [""] + technique_options, index=0, format_func=lambda x: 'Sélectionner' if x == '' else x)
+
+    if technique == "Bass":
+        st.write("Recommandée pour nettoyage bord marginal avec présence importante de biofilm. Lors de parodontite et présence espaces interdentaires importants.")
+    elif technique == "Bass modifié":
+        st.write("Recommandée idem Bass mais avec présence de biofilm sur le reste de la couronne.")
+    elif technique == "45° Circulaire":
+        st.write("Recommandée lors de présence de biofilm au bord marginal et patient avec plus faible dextérité.")
+    elif technique == "45° Circulaire chassé":
+        st.write("Recommandée lors de présence de biofilm au bord marginal + sur la couronne et patient avec plus faible dextérité.")
+    elif technique == "Rolling stroke ou Roll":
+        st.write("Recommandée lors de retraits importants de gencive et /ou peu de gencive attachée et une table osseuse fine.")
+    elif technique == "Stillman’s":
+        st.write("Recommandée pour masser et stimuler les gencives et nettoyer les zones cervicales avec efficacité mais à minimiser les traumatismes gingivaux. Cette méthode nécessite de la dextérité.")
+    elif technique == "Charter’s":
+        st.write("Recommandé pour le massage de la gencive / lors de la présence de brackets.")
+    elif technique == "90° Circulaire":
+        st.write("Recommandée pour les patients à faible dextérité.")
+    elif technique == "Brossage électrique":
+        st.write("Recommandée pour les patients à faible dextérité.")
+    elif technique == "Autre":
+        autre_technique = st.text_input("Précisez la technique de brossage")
+
     type_brosse_options = ["Manuel", "Electrique", "Non conseillé"]
     type_brosse = st.selectbox("Conseillé de changé de méthode de brossage", type_brosse_options)
+
     bain_bouche = st.multiselect("Bain de bouche", ["CHX", "O2", "Autre"], default=[])
 
     chx_days = None
@@ -855,7 +1053,15 @@ with tab7:
 
     if "Autre" in bain_bouche:
         autre_text = st.text_input("Précisez")
+
     conseil_dentifrice = st.text_input("Conseil de dentifrice")
+
+    # New section for "Autre produits d'hygiène"
+    st.write("### Autre produits d'hygiène")
+    hygiene_products = st.multiselect("Choix produits d'hygiène", ["Elmex Gel", "Autre"], default=[])
+    other_hygiene_product = None
+    if "Autre" in hygiene_products:
+        other_hygiene_product = st.text_input("Précisez (Autre produits d'hygiène)")
 
     # Espaces interdentaires
     st.write("### Espaces interdentaires")
@@ -934,10 +1140,11 @@ with col3:
         st.success(f"Rapport Text généré : {text_filename}")
 
 with col4:
-    if st.button("Effacer les données"):
-        for key in st.session_state.keys():
-            del st.session_state[key]
-        st.success("Données effacées")
+    if st.button("Générer conseils d'hygiène"):
+        data = prepare_data()
+        filename = f"Conseils_Hygiene_{nom_prenom.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf" if nom_prenom else f"Conseils_Hygiene_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        generate_hygiene_pdf(data, filename)
+        st.success(f"Document PDF généré : {filename}")
 
 # Display the editable text area
 if 'generated_text' in st.session_state:
