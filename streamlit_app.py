@@ -22,7 +22,9 @@ def generate_pdf(data, filename):
 # Fonction pour calculer l'âge
 def calculate_age(born):
     today = date.today()
-    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    st.write(f"Âge: {age}")
+    return age
 
 # Fonction pour vérifier le médicament dans CBIP
 def verifier_medicament_cbip(nom_medicament):
@@ -76,6 +78,7 @@ def prepare_data():
         "Date d'aujourd'hui": date_aujourdhui.strftime("%d.%m.%Y") if date_aujourdhui else None,
         "Numéro du Patient": num_patient if num_patient else None,
         "Date de Naissance": date_naissance.strftime("%d.%m.%Y") if date_naissance else None,
+	"Âge": calculate_age(date_naissance) if date_naissance else None,
         "Praticien": praticien if praticien else None,
         "HDD": hdd.strftime('%H:%M') if hdd else None,
         "RP-P": rpp_details if rpp == "Oui" and rpp_details else None,
@@ -113,32 +116,44 @@ def prepare_data():
         "Overbite": f"{overbite} - {overbite_value} mm" if overbite and overbite in ["Léger", "Moyen", "Important"] and overbite_value else None,
         "Overjet": f"{overjet} - {overjet_value} mm" if overjet and overjet in ["Léger", "Moyen", "Important"] and overjet_value else None,
         "Classe d'angle": classe_angle if classe_angle else None,
+        "Articulé Croisé": ", ".join(articule_croise) if articule_croise else None,
+        "POST Options": post_options if "POST" in articule_croise else None,
+        "Autre POST Details": post_autre_details if post_options == "Autre" else None,
         "DPSI": f"{sext1}/{sext2}/{sext3} | {sext6}/{sext5}/{sext4}" if sext1 and sext2 and sext3 and sext4 and sext5 and sext6 else None,
+	"Précisez les poches": precise_les_poches if precise_les_poches else None,
         "BF": format_depot_details(bf_data, bf_details),
         "TR": format_depot_details(tr_data, tr_details),
         "COL": format_depot_details(col_data, col_details),
         "BOI": format_depot_details(boi_data, boi_details),
         "BOP": format_depot_details(bop_data, bop_details),
         "ED": ed if ed else None,
-        "Q1": q1 if q1 else None,
-        "Q2": q2 if q2 else None,
-        "Q3": q3 if q3 else None,
-        "Q4": q4 if q4 else None,
+	"Q1": q1_details if q1_details else None,
+        "Q2": q2_details if q2_details else None,
+        "Q3": q3_details if q3_details else None,
+        "Q4": q4_details if q4_details else None,
         "RX": ", ".join(rx_choix) if rx_choix else None,
         "Rétro-alvéolaire": retro_autre if 'retro_autre' in locals() and retro_autre else None,
-        "DHD": f"{dhd} - Stade: {stade}, Grade: {grade}" if dhd == "Parodontite" and stade and grade else None,
+        "DHD": f"{dhd} - Stade: {stade}, Grade: {grade}" if dhd == "Parodontite" and stade and grade else dhd,
+        "Justifier le diagnostique": justifier_diagnostique if justifier_diagnostique else None,
         "IHO Technique de brossage": technique if technique else None,
         "IHO Conseillé de changé de méthode de brossage": type_brosse if type_brosse else None,
-        "IHO Bain de bouche": bain_bouche if bain_bouche else None,
-        "IHO Conseil de dentifrice": conseil_dentifrice if conseil_dentifrice else None,
-         "ACJ": ", ".join(acj_choix) if acj_choix else None,  # Include ACJ selections
-        "Detartrage Options": ", ".join(detartrage_choix) if detartrage_choix else None,  # Include Detartrage Options
-        "Surfaçage Options": ", ".join(surfacage_choix) if surfacage_choix else None,
+
+	"Bain de bouche": ", ".join(bain_bouche) if bain_bouche else None,
+        "CHX - Combien de jours": chx_days if "CHX" in bain_bouche and chx_days else None,
+        "O2 - Combien de jours": o2_days if "O2" in bain_bouche and o2_days else None,
+        "Autre bain de bouche": autre_text if "Autre" in bain_bouche and autre_text else None,
+        "Conseil de dentifrice": conseil_dentifrice if conseil_dentifrice else None,
+
+    
+
 
         "Espaces Interdentaires Maxillaire": "\n".join([f"{space}: {all_interdental_data[space]}" for space in maxillaire_spaces if space in all_interdental_data and all_interdental_data[space]]),
         "Espaces Interdentaires Mandibulaire": "\n".join([f"{space}: {all_interdental_data[space]}" for space in mandibulaire_spaces if space in all_interdental_data and all_interdental_data[space]]),
-   
-        "PF": pf if pf else None,
+  	"ACJ": ", ".join(acj_choix) if acj_choix else None,  # Include ACJ selections
+        "Detartrage Options": ", ".join(detartrage_choix) if detartrage_choix else None,  # Include Detartrage Options
+        "Surfaçage Options": ", ".join(surfacage_choix) if surfacage_choix else None,
+        "Autre Details": autre_details if "Autre" in acj_choix and autre_details else None,
+
         "PF dentiste": pf_dentiste if pf_dentiste else None,
         "Facturé": facture if facture else None,
     }
@@ -164,9 +179,15 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # Onglet 1 : Informations Patient
 with tab1:
     nom_prenom = st.text_input("Nom et Prénom")
-    prochain_rdv = st.date_input("Prochain rendez-vous", value=datetime.now(), format="DD.MM.YYYY")
-    heure_rdv = st.time_input("Heure du prochain rendez-vous", value=datetime.now().time())
-    prochain_rdv = datetime.combine(prochain_rdv, heure_rdv)
+    prochain_rdv_date = st.date_input("Prochain rendez-vous", value=datetime.now(), format="DD.MM.YYYY")
+    
+    # Use session state to preserve the selected time
+    if "heure_rdv" not in st.session_state:
+        st.session_state.heure_rdv = datetime.now().time()
+    heure_rdv = st.time_input("Heure du prochain rendez-vous", value=st.session_state.heure_rdv)
+    st.session_state.heure_rdv = heure_rdv  # Update session state
+
+    prochain_rdv = datetime.combine(prochain_rdv_date, heure_rdv)
     date_aujourdhui = st.date_input("Date d'aujourd'hui", datetime.today())
     num_patient = st.text_input("Numéro du Patient")
     date_naissance = st.date_input("Date de Naissance", min_value=date(1900, 1, 1), max_value=date.today())
@@ -175,7 +196,12 @@ with tab1:
 
     # Section HDD (Heure d'Arrivée)
     st.write("HDD (Heure d'Arrivée):")
-    hdd = st.time_input("Heure d'arrivée", value=datetime.now().time())
+    
+    # Use session state to preserve the selected time
+    if "hdd" not in st.session_state:
+        st.session_state.hdd = datetime.now().time()
+    hdd = st.time_input("Heure d'arrivée", value=st.session_state.hdd)
+    st.session_state.hdd = hdd  # Update session state
 
 # Onglet 2 : Praticien
 with tab2:
@@ -233,18 +259,19 @@ with tab3:
 # Onglet 4 : Habitudes Alimentaires
 with tab4:
     st.write("Nombre de repas par jour :")
-    alim = st.selectbox("ALIM", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4"])
+    alim = st.selectbox("ALIM", ["0", "0 à 1", "1 à 2", "2 à 3", "3", "3 à 4", "+ de 4"])
     
     st.write("Boissons :")
     boissons = st.multiselect("Boissons", ["Eau", "Thé", "Café", "Soda"])
     if "Thé" in boissons:
-        the_frequence = st.selectbox("Fréquence de Thé", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4"])
+        the_frequence = st.selectbox("Fréquence de Thé", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4", "+ de 4"])
     if "Café" in boissons:
-        cafe_frequence = st.selectbox("Fréquence de Café", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4"])
+        cafe_frequence = st.selectbox("Fréquence de Café", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4", "+ de 4"])
     if "Soda" in boissons:
-        soda_frequence = st.selectbox("Fréquence de Soda", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4"])
+        soda_frequence = st.selectbox("Fréquence de Soda", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4", "+ de 4"])
     
-    sucre = st.selectbox("Sucre", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4"])
+    sucre = st.selectbox("Sucre", ["0", "0 à 1", "1 à 2", "2 à 3", "3 à 4", "+ de 4"])
+
 
 # Onglet 5 : Hygiène à Domicile
 with tab5:
@@ -290,8 +317,17 @@ with tab6:
     if overjet in ["Léger", "Moyen", "Important"]:
         overjet_value = st.text_input("Valeur Overjet (mm)")
 
-    classe_angle = st.selectbox("Classe d'angle", ["Classe I", "Classe II", "Classe II div. I", "Classe II div. II", "Classe III"])
-    
+    classe_angle = st.selectbox("Classe d'angle", ["Pas examiné", "Classe I", "Classe II", "Classe II div. I", "Classe II div. II", "Classe III"])
+   
+# New section for articulé croisé
+    articule_croise = st.multiselect("Articulé Croisé", ["ANT", "POST"])
+    post_options = None
+    post_autre_details = None
+    if "POST" in articule_croise:
+        post_options = st.selectbox("POST Options", ["Droit", "Gauche", "Bilatéral", "Autre"])
+        if post_options == "Autre":
+            post_autre_details = st.text_input("Précisez (Autre POST)")
+
     # Nouvelle section RX
     st.write("### RX")
     rx_choix = st.multiselect("Choix RX", ["2 BW", "Pan", "Rétro-alvéolaire"])
@@ -315,6 +351,9 @@ with tab6:
         sext5 = st.selectbox("Sext 5", ["1", "2", "3-", "3+", "4"])
     with col6:
         sext4 = st.selectbox("Sext 4", ["1", "2", "3-", "3+", "4"])
+	
+	# Add new section for "précisé les poches"
+    precise_les_poches = st.text_area("Précisez les poches")
 
     # Section Dépôts Dentaires
     st.write("### Dépôts dentaires")
@@ -347,25 +386,428 @@ with tab6:
 
     ed = st.text_input("ED")
     
-    q1 = st.text_input("Q1")
-    q2 = st.text_input("Q2")
-    q3 = st.text_input("Q3")
-    q4 = st.text_input("Q4")
 
-    # Section DHD (Diagnostic Hygiène Dentaire)
+        # Update Q1 input to multi-choice with cascading options
+    q1_options = ["Dent manquante", "Suspicion de carie", "Déminéralisation", "Composite", "Amalgamme", "Implant", "Couronne sur dent", "Bridge", "Autre"]
+    q1_choice = st.multiselect("Q1", q1_options, key="q1_multiselect")
+
+    q1_details = {}
+    if "Autre" in q1_choice:
+        other_text = st.text_input("Précisez (Autre)", key="q1_autre")
+        q1_details["Autre"] = other_text
+
+    if "Dent manquante" in q1_choice:
+        missing_teeth = st.multiselect("Teeth (Dent manquante)", ["18", "17", "16", "15", "14", "13", "12", "11"], key="q1_dent_manquante")
+        q1_details["Dent manquante"] = missing_teeth
+
+    if "Suspicion de carie" in q1_choice:
+        carie_teeth = st.multiselect("Teeth (Suspicion de carie)", ["18", "17", "16", "15", "14", "13", "12", "11"], key="q1_suspicion_carie")
+        q1_details["Suspicion de carie"] = {}
+        for tooth in carie_teeth:
+            carie_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q1_surface_{tooth}")
+            q1_details["Suspicion de carie"][tooth] = {}
+            for surface in carie_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q1_precision_{tooth}_{surface}")
+                    q1_details["Suspicion de carie"][tooth][surface] = precision_text
+                else:
+                    q1_details["Suspicion de carie"][tooth][surface] = "Non"
+            verify_dentist = st.radio(f"Vérifier par le dentiste (Suspicion de carie) pour {tooth}", ["Oui", "Non"], key=f"q1_verify_{tooth}")
+            q1_details["Suspicion de carie"][tooth]["Vérifier par le dentiste"] = verify_dentist
+
+    if "Déminéralisation" in q1_choice:
+        demin_teeth = st.multiselect("Teeth (Déminéralisation)", ["18", "17", "16", "15", "14", "13", "12", "11"], key="q1_demineralisation")
+        q1_details["Déminéralisation"] = {}
+        for tooth in demin_teeth:
+            demin_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q1_demin_surfaces_{tooth}")
+            q1_details["Déminéralisation"][tooth] = {}
+            for surface in demin_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q1_demin_precision_{tooth}_{surface}")
+                    q1_details["Déminéralisation"][tooth][surface] = precision_text
+                else:
+                    q1_details["Déminéralisation"][tooth][surface] = "Non"
+
+    if "Composite" in q1_choice:
+        composite_teeth = st.multiselect("Teeth (Composite)", ["18", "17", "16", "15", "14", "13", "12", "11"], key="q1_composite")
+        q1_details["Composite"] = {}
+        for tooth in composite_teeth:
+            composite_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q1_composite_surfaces_{tooth}")
+            q1_details["Composite"][tooth] = {}
+            for surface in composite_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q1_composite_precision_{tooth}_{surface}")
+                    q1_details["Composite"][tooth][surface] = precision_text
+                else:
+                    q1_details["Composite"][tooth][surface] = "Non"
+
+    if "Amalgamme" in q1_choice:
+        amalgamme_teeth = st.multiselect("Teeth (Amalgamme)", ["18", "17", "16", "15", "14", "13", "12", "11"], key="q1_amalgamme")
+        q1_details["Amalgamme"] = {}
+        for tooth in amalgamme_teeth:
+            amalgamme_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q1_amalgamme_surfaces_{tooth}")
+            q1_details["Amalgamme"][tooth] = {}
+            for surface in amalgamme_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q1_amalgamme_precision_{tooth}_{surface}")
+                    q1_details["Amalgamme"][tooth][surface] = precision_text
+                else:
+                    q1_details["Amalgamme"][tooth][surface] = "Non"
+           
+       
+    if "Implant" in q1_choice:
+        implant_teeth = st.multiselect("Teeth (Implant)", ["18", "17", "16", "15", "14", "13", "12", "11"])
+        q1_details["Implant"] = {}
+        for tooth in implant_teeth:
+            implant_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if implant_state == "Risque":
+                implant_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"implant_risk_{tooth}")
+                q1_details["Implant"][tooth] = {"État": implant_state, "Risque": implant_risk_text}
+            else:
+                q1_details["Implant"][tooth] = {"État": implant_state}
+
+    if "Couronne sur dent" in q1_choice:
+        couronne_teeth = st.multiselect("Teeth (Couronne sur dent)", ["18", "17", "16", "15", "14", "13", "12", "11"])
+        q1_details["Couronne sur dent"] = {}
+        for tooth in couronne_teeth:
+            couronne_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if couronne_state == "Risque":
+                couronne_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"couronne_risk_{tooth}")
+                q1_details["Couronne sur dent"][tooth] = {"État": couronne_state, "Risque": couronne_risk_text}
+            else:
+                q1_details["Couronne sur dent"][tooth] = {"État": couronne_state}
+
+    if "Bridge" in q1_choice:
+        bridge_teeth = st.multiselect("Teeth (Bridge)", ["18", "17", "16", "15", "14", "13", "12", "11"])
+        q1_details["Bridge"] = {}
+        for tooth in bridge_teeth:
+            bridge_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if bridge_state == "Risque":
+                bridge_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"bridge_risk_{tooth}")
+                q1_details["Bridge"][tooth] = {"État": bridge_state, "Risque": bridge_risk_text}
+            else:
+                q1_details["Bridge"][tooth] = {"État": bridge_state}
+
+    # Update Q2 input to multi-choice with cascading options
+    q2_choice = st.multiselect("Q2", q1_options, key="q2_multiselect")
+
+    q2_details = {}
+    if "Autre" in q2_choice:
+        other_text = st.text_input("Précisez (Autre Q2)", key="q2_autre")
+        q2_details["Autre"] = other_text
+
+    if "Dent manquante" in q2_choice:
+        missing_teeth = st.multiselect("Teeth (Dent manquante)", ["28", "27", "26", "25", "24", "23", "22", "21"], key="q2_dent_manquante")
+        q2_details["Dent manquante"] = missing_teeth
+
+    if "Suspicion de carie" in q2_choice:
+        carie_teeth = st.multiselect("Teeth (Suspicion de carie)", ["28", "27", "26", "25", "24", "23", "22", "21"], key="q2_suspicion_carie")
+        q2_details["Suspicion de carie"] = {}
+        for tooth in carie_teeth:
+            carie_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q2_surface_{tooth}")
+            q2_details["Suspicion de carie"][tooth] = {}
+            for surface in carie_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q2_precision_{tooth}_{surface}")
+                    q2_details["Suspicion de carie"][tooth][surface] = precision_text
+                else:
+                    q2_details["Suspicion de carie"][tooth][surface] = "Non"
+            verify_dentist = st.radio(f"Vérifier par le dentiste (Suspicion de carie) pour {tooth}", ["Oui", "Non"], key=f"q2_verify_{tooth}")
+            q2_details["Suspicion de carie"][tooth]["Vérifier par le dentiste"] = verify_dentist
+
+    if "Déminéralisation" in q2_choice:
+        demin_teeth = st.multiselect("Teeth (Déminéralisation)", ["28", "27", "26", "25", "24", "23", "22", "21"], key="q2_demineralisation")
+        q2_details["Déminéralisation"] = {}
+        for tooth in demin_teeth:
+            demin_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q2_demin_surfaces_{tooth}")
+            q2_details["Déminéralisation"][tooth] = {}
+            for surface in demin_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q2_demin_precision_{tooth}_{surface}")
+                    q2_details["Déminéralisation"][tooth][surface] = precision_text
+                else:
+                    q2_details["Déminéralisation"][tooth][surface] = "Non"
+
+    if "Composite" in q2_choice:
+        composite_teeth = st.multiselect("Teeth (Composite)", ["28", "27", "26", "25", "24", "23", "22", "21"], key="q2_composite")
+        q2_details["Composite"] = {}
+        for tooth in composite_teeth:
+            composite_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q2_composite_surfaces_{tooth}")
+            q2_details["Composite"][tooth] = {}
+            for surface in composite_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q2_composite_precision_{tooth}_{surface}")
+                    q2_details["Composite"][tooth][surface] = precision_text
+                else:
+                    q2_details["Composite"][tooth][surface] = "Non"
+
+    if "Amalgamme" in q2_choice:
+        amalgamme_teeth = st.multiselect("Teeth (Amalgamme)", ["28", "27", "26", "25", "24", "23", "22", "21"], key="q2_amalgamme")
+        q2_details["Amalgamme"] = {}
+        for tooth in amalgamme_teeth:
+            amalgamme_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "P", "Collet", "Préciser"], key=f"q2_amalgamme_surfaces_{tooth}")
+            q2_details["Amalgamme"][tooth] = {}
+            for surface in amalgamme_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q2_amalgamme_precision_{tooth}_{surface}")
+                    q2_details["Amalgamme"][tooth][surface] = precision_text
+                else:
+                    q2_details["Amalgamme"][tooth][surface] = "Non"
+      
+
+    if "Implant" in q2_choice:
+        implant_teeth = st.multiselect("Teeth (Implant)", ["28", "27", "26", "25", "24", "23", "22", "21"])
+        q2_details["Implant"] = {}
+        for tooth in implant_teeth:
+            implant_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if implant_state == "Risque":
+                implant_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q2_implant_risk_{tooth}")
+                q2_details["Implant"][tooth] = {"État": implant_state, "Risque": implant_risk_text}
+            else:
+                q2_details["Implant"][tooth] = {"État": implant_state}
+
+    if "Couronne sur dent" in q2_choice:
+        couronne_teeth = st.multiselect("Teeth (Couronne sur dent)", ["28", "27", "26", "25", "24", "23", "22", "21"])
+        q2_details["Couronne sur dent"] = {}
+        for tooth in couronne_teeth:
+            couronne_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if couronne_state == "Risque":
+                couronne_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q2_couronne_risk_{tooth}")
+                q2_details["Couronne sur dent"][tooth] = {"État": couronne_state, "Risque": couronne_risk_text}
+            else:
+                q2_details["Couronne sur dent"][tooth] = {"État": couronne_state}
+
+    if "Bridge" in q2_choice:
+        bridge_teeth = st.multiselect("Teeth (Bridge)", ["28", "27", "26", "25", "24", "23", "22", "21"])
+        q2_details["Bridge"] = {}
+        for tooth in bridge_teeth:
+            bridge_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if bridge_state == "Risque":
+                bridge_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q2_bridge_risk_{tooth}")
+                q2_details["Bridge"][tooth] = {"État": bridge_state, "Risque": bridge_risk_text}
+            else:
+                q2_details["Bridge"][tooth] = {"État": bridge_state}
+
+
+
+        # Update Q3 input to multi-choice with cascading options
+    q3_choice = st.multiselect("Q3", q1_options, key="q3_multiselect")
+
+    q3_details = {}
+    if "Autre" in q3_choice:
+        other_text = st.text_input("Précisez (Autre Q3)", key="q3_autre")
+        q3_details["Autre"] = other_text
+
+    if "Dent manquante" in q3_choice:
+        missing_teeth = st.multiselect("Teeth (Dent manquante)", ["38", "37", "36", "35", "34", "33", "32", "31"], key="q3_dent_manquante")
+        q3_details["Dent manquante"] = missing_teeth
+
+    if "Suspicion de carie" in q3_choice:
+        carie_teeth = st.multiselect("Teeth (Suspicion de carie)", ["38", "37", "36", "35", "34", "33", "32", "31"], key="q3_suspicion_carie")
+        q3_details["Suspicion de carie"] = {}
+        for tooth in carie_teeth:
+            carie_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q3_surface_{tooth}")
+            q3_details["Suspicion de carie"][tooth] = {}
+            for surface in carie_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q3_precision_{tooth}_{surface}")
+                    q3_details["Suspicion de carie"][tooth][surface] = precision_text
+                else:
+                    q3_details["Suspicion de carie"][tooth][surface] = "Non"
+            verify_dentist = st.radio(f"Vérifier par le dentiste (Suspicion de carie) pour {tooth}", ["Oui", "Non"], key=f"q3_verify_{tooth}")
+            q3_details["Suspicion de carie"][tooth]["Vérifier par le dentiste"] = verify_dentist
+
+    if "Déminéralisation" in q3_choice:
+        demin_teeth = st.multiselect("Teeth (Déminéralisation)", ["38", "37", "36", "35", "34", "33", "32", "31"], key="q3_demineralisation")
+        q3_details["Déminéralisation"] = {}
+        for tooth in demin_teeth:
+            demin_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q3_demin_surfaces_{tooth}")
+            q3_details["Déminéralisation"][tooth] = {}
+            for surface in demin_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q3_demin_precision_{tooth}_{surface}")
+                    q3_details["Déminéralisation"][tooth][surface] = precision_text
+                else:
+                    q3_details["Déminéralisation"][tooth][surface] = "Non"
+
+    if "Composite" in q3_choice:
+        composite_teeth = st.multiselect("Teeth (Composite)", ["38", "37", "36", "35", "34", "33", "32", "31"], key="q3_composite")
+        q3_details["Composite"] = {}
+        for tooth in composite_teeth:
+            composite_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q3_composite_surfaces_{tooth}")
+            q3_details["Composite"][tooth] = {}
+            for surface in composite_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q3_composite_precision_{tooth}_{surface}")
+                    q3_details["Composite"][tooth][surface] = precision_text
+                else:
+                    q3_details["Composite"][tooth][surface] = "Non"
+
+    if "Amalgamme" in q3_choice:
+        amalgamme_teeth = st.multiselect("Teeth (Amalgamme)", ["38", "37", "36", "35", "34", "33", "32", "31"], key="q3_amalgamme")
+        q3_details["Amalgamme"] = {}
+        for tooth in amalgamme_teeth:
+            amalgamme_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q3_amalgamme_surfaces_{tooth}")
+            q3_details["Amalgamme"][tooth] = {}
+            for surface in amalgamme_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q3_amalgamme_precision_{tooth}_{surface}")
+                    q3_details["Amalgamme"][tooth][surface] = precision_text
+                else:
+                    q3_details["Amalgamme"][tooth][surface] = "Non"
+
+    if "Implant" in q3_choice:
+        implant_teeth = st.multiselect("Teeth (Implant)", ["38", "37", "36", "35", "34", "33", "32", "31"])
+        q3_details["Implant"] = {}
+        for tooth in implant_teeth:
+            implant_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if implant_state == "Risque":
+                implant_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q3_implant_risk_{tooth}")
+                q3_details["Implant"][tooth] = {"État": implant_state, "Risque": implant_risk_text}
+            else:
+                q3_details["Implant"][tooth] = {"État": implant_state}
+
+    if "Couronne sur dent" in q3_choice:
+        couronne_teeth = st.multiselect("Teeth (Couronne sur dent)", ["38", "37", "36", "35", "34", "33", "32", "31"])
+        q3_details["Couronne sur dent"] = {}
+        for tooth in couronne_teeth:
+            couronne_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if couronne_state == "Risque":
+                couronne_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q3_couronne_risk_{tooth}")
+                q3_details["Couronne sur dent"][tooth] = {"État": couronne_state, "Risque": couronne_risk_text}
+            else:
+                q3_details["Couronne sur dent"][tooth] = {"État": couronne_state}
+
+    if "Bridge" in q3_choice:
+        bridge_teeth = st.multiselect("Teeth (Bridge)", ["38", "37", "36", "35", "34", "33", "32", "31"])
+        q3_details["Bridge"] = {}
+        for tooth in bridge_teeth:
+            bridge_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if bridge_state == "Risque":
+                bridge_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q3_bridge_risk_{tooth}")
+                q3_details["Bridge"][tooth] = {"État": bridge_state, "Risque": bridge_risk_text}
+            else:
+                q3_details["Bridge"][tooth] = {"État": bridge_state}
+
+
+
+        # Update Q4 input to multi-choice with cascading options
+    q4_choice = st.multiselect("Q4", q1_options, key="q4_multiselect")
+
+    q4_details = {}
+    if "Autre" in q4_choice:
+        other_text = st.text_input("Précisez (Autre Q4)", key="q4_autre")
+        q4_details["Autre"] = other_text
+
+    if "Dent manquante" in q4_choice:
+        missing_teeth = st.multiselect("Teeth (Dent manquante)", ["48", "47", "46", "45", "44", "43", "42", "41"], key="q4_dent_manquante")
+        q4_details["Dent manquante"] = missing_teeth
+
+    if "Suspicion de carie" in q4_choice:
+        carie_teeth = st.multiselect("Teeth (Suspicion de carie)", ["48", "47", "46", "45", "44", "43", "42", "41"], key="q4_suspicion_carie")
+        q4_details["Suspicion de carie"] = {}
+        for tooth in carie_teeth:
+            carie_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q4_surface_{tooth}")
+            q4_details["Suspicion de carie"][tooth] = {}
+            for surface in carie_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q4_precision_{tooth}_{surface}")
+                    q4_details["Suspicion de carie"][tooth][surface] = precision_text
+                else:
+                    q4_details["Suspicion de carie"][tooth][surface] = "Non"
+            verify_dentist = st.radio(f"Vérifier par le dentiste (Suspicion de carie) pour {tooth}", ["Oui", "Non"], key=f"q4_verify_{tooth}")
+            q4_details["Suspicion de carie"][tooth]["Vérifier par le dentiste"] = verify_dentist
+
+    if "Déminéralisation" in q4_choice:
+        demin_teeth = st.multiselect("Teeth (Déminéralisation)", ["48", "47", "46", "45", "44", "43", "42", "41"], key="q4_demineralisation")
+        q4_details["Déminéralisation"] = {}
+        for tooth in demin_teeth:
+            demin_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q4_demin_surfaces_{tooth}")
+            q4_details["Déminéralisation"][tooth] = {}
+            for surface in demin_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q4_demin_precision_{tooth}_{surface}")
+                    q4_details["Déminéralisation"][tooth][surface] = precision_text
+                else:
+                    q4_details["Déminéralisation"][tooth][surface] = "Non"
+
+    if "Composite" in q4_choice:
+        composite_teeth = st.multiselect("Teeth (Composite)", ["48", "47", "46", "45", "44", "43", "42", "41"], key="q4_composite")
+        q4_details["Composite"] = {}
+        for tooth in composite_teeth:
+            composite_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q4_composite_surfaces_{tooth}")
+            q4_details["Composite"][tooth] = {}
+            for surface in composite_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q4_composite_precision_{tooth}_{surface}")
+                    q4_details["Composite"][tooth][surface] = precision_text
+                else:
+                    q4_details["Composite"][tooth][surface] = "Non"
+
+    if "Amalgamme" in q4_choice:
+        amalgamme_teeth = st.multiselect("Teeth (Amalgamme)", ["48", "47", "46", "45", "44", "43", "42", "41"], key="q4_amalgamme")
+        q4_details["Amalgamme"] = {}
+        for tooth in amalgamme_teeth:
+            amalgamme_surfaces = st.multiselect(f"Surfaces for {tooth}", ["M", "D", "V", "O", "L", "Collet", "Préciser"], key=f"q4_amalgamme_surfaces_{tooth}")
+            q4_details["Amalgamme"][tooth] = {}
+            for surface in amalgamme_surfaces:
+                if surface == "Préciser":
+                    precision_text = st.text_input(f"Précision for {surface} {tooth}", key=f"q4_amalgamme_precision_{tooth}_{surface}")
+                    q4_details["Amalgamme"][tooth][surface] = precision_text
+                else:
+                    q4_details["Amalgamme"][tooth][surface] = "Non"
+       
+     
+    if "Implant" in q4_choice:
+        implant_teeth = st.multiselect("Teeth (Implant)", ["48", "47", "46", "45", "44", "43", "42", "41"])
+        q4_details["Implant"] = {}
+        for tooth in implant_teeth:
+            implant_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if implant_state == "Risque":
+                implant_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q4_implant_risk_{tooth}")
+                q4_details["Implant"][tooth] = {"État": implant_state, "Risque": implant_risk_text}
+            else:
+                q4_details["Implant"][tooth] = {"État": implant_state}
+
+    if "Couronne sur dent" in q4_choice:
+        couronne_teeth = st.multiselect("Teeth (Couronne sur dent)", ["48", "47", "46", "45", "44", "43", "42", "41"])
+        q4_details["Couronne sur dent"] = {}
+        for tooth in couronne_teeth:
+            couronne_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if couronne_state == "Risque":
+                couronne_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q4_couronne_risk_{tooth}")
+                q4_details["Couronne sur dent"][tooth] = {"État": couronne_state, "Risque": couronne_risk_text}
+            else:
+                q4_details["Couronne sur dent"][tooth] = {"État": couronne_state}
+
+    if "Bridge" in q4_choice:
+        bridge_teeth = st.multiselect("Teeth (Bridge)", ["48", "47", "46", "45", "44", "43", "42", "41"])
+        q4_details["Bridge"] = {}
+        for tooth in bridge_teeth:
+            bridge_state = st.selectbox(f"État for {tooth}", ["OK", "Risque"])
+            if bridge_state == "Risque":
+                bridge_risk_text = st.text_input(f"Précisez le risque for {tooth}", key=f"q4_bridge_risk_{tooth}")
+                q4_details["Bridge"][tooth] = {"État": bridge_state, "Risque": bridge_risk_text}
+            else:
+                q4_details["Bridge"][tooth] = {"État": bridge_state}
+
+     # Section DHD (Diagnostic Hygiène Dentaire)
     st.write("### DHD")
     dhd = st.selectbox("Diagnostic", ["Sain", "Gingivite", "Parodontite"])
     stade = None
     grade = None
+    justifier_diagnostique = None  # Initialize the variable
 
     if dhd == "Parodontite":
         col1, col2 = st.columns(2)
         with col1:
-            stade = st.selectbox("Stade", ["I", "II", "III", "IV"])
+              stade = st.selectbox("Stade", ["I", "II", "III", "IV"])
         with col2:
-            grade = st.selectbox("Grade", ["A", "B", "C"])
-            
-    # ACJ Section
+              grade = st.selectbox("Grade", ["A", "B", "C"])
+        justifier_diagnostique = st.text_area("Justifier le diagnostique")
+
+
+	# ACJ Section
     st.write("### ACJ")
     acj_options = ["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Detartrage", "Surfaçage"]
     acj_choix = st.multiselect("ACJ Options", acj_options)
@@ -382,11 +824,12 @@ with tab6:
     else:
         surfacage_choix = []
 
-    # Section PF (Plan de Formation)
+    # PF Section
     st.write("### PF")
     pf = st.text_input("PF")
     pf_dentiste = st.text_input("PF dentiste")
     facture = st.text_input("Facturé")
+
 
 # Onglet 7 : IHO
 with tab7:
@@ -398,7 +841,20 @@ with tab7:
     technique = st.selectbox("Technique de brossage", technique_options)
     type_brosse_options = ["Manuel", "Electrique", "Non conseillé"]
     type_brosse = st.selectbox("Conseillé de changé de méthode de brossage", type_brosse_options)
-    bain_bouche = st.text_input("Bain de bouche")
+    bain_bouche = st.multiselect("Bain de bouche", ["CHX", "O2", "Autre"], default=[])
+
+    chx_days = None
+    o2_days = None
+    autre_text = None
+
+    if "CHX" in bain_bouche:
+        chx_days = st.selectbox("CHX - Combien de jours ?", ["3j", "7j", "14j"])
+
+    if "O2" in bain_bouche:
+        o2_days = st.selectbox("O2 - Combien de jours ?", ["3j", "7j", "14j"])
+
+    if "Autre" in bain_bouche:
+        autre_text = st.text_input("Précisez")
     conseil_dentifrice = st.text_input("Conseil de dentifrice")
 
     # Espaces interdentaires
@@ -428,7 +884,7 @@ with tab7:
             method_details = []
 
             if "Brossettes interdentaires" in selected_methods:
-                brand_options = ["Curaprox", "Interprox", "TeePee", "Gum"]
+                brand_options = ["Curaprox", "Interprox", "TePe", "Gum"]
                 selected_brand = st.selectbox(f"Marque Brossettes pour {space}", brand_options, key=f"brand_{location}_{space}")
                 size_options = ["0.6 mm", "0.7 mm", "0.8mm", "1.1mm", "1.3mm", "1.5mm", "1.9mm", "2.2mm", "2.7mm"]
                 selected_size = st.selectbox(f"Taille Brossettes pour {space}", size_options, key=f"size_{location}_{space}")
@@ -485,7 +941,7 @@ with col4:
 
 # Display the editable text area
 if 'generated_text' in st.session_state:
-    editable_text = st.text_area("Texte Modifiable", st.session_state.generated_text, height=300)  # Added text area
+    editable_text = st.text_area("Texte Modifiable", st.session_state.generated_text, height=500)  # Added text area
 
     # Option to save the edited text to a file
     if st.button("Sauvegarder le texte modifié"):
