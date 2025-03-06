@@ -9,24 +9,79 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 import os
 import requests  # Pour interagir avec l'API CBIP
+import json
 
 # Configuration de la page
 st.set_page_config(page_title="Gestion des Patients", layout="wide")
+
+# Banque de données pour les mutuelles
+mutuelle_table = {
+    "Mutualité Chrétienne (CM)": {"détartrage": (50, 60), "surfacage": (60, 70), "parodontal": (20, 30)},
+    "Mutualité Socialiste (Solidaris)": {"détartrage": (60, 70), "surfacage": (70, 80), "parodontal": (25, 35)},
+    "Mutualité Libérale": {"détartrage": (40, 50), "surfacage": (50, 60), "parodontal": (15, 25)},
+    "Mutualité Neutre": {"détartrage": (45, 55), "surfacage": (55, 65), "parodontal": (18, 28)},
+    "Partenamut": {"détartrage": (55, 65), "surfacage": (65, 75), "parodontal": (22, 32)},
+    "Dentalia": {"détartrage": (70, 80), "surfacage": (80, 90), "parodontal": (30, 40)},
+    "DKV": {"détartrage": (65, 75), "surfacage": (75, 85), "parodontal": (28, 38)}
+}
+
+def generate_devis_pdf(devis_data, filename):
+    c = canvas.Canvas(filename, pagesize=letter)
+    width, height = letter
+    styles = getSampleStyleSheet()
+    style_bold = ParagraphStyle(name='Bold', fontSize=12, leading=14, textColor=colors.black, spaceAfter=10, spaceBefore=10, bold=True)
+    style_normal = styles['Normal']
+    style_normal.fontSize = 10
+    style_normal.leading = 12
+    style_normal.textColor = colors.black
+
+    def draw_paragraph(text, x, y, style):
+        p = Paragraph(text, style)
+        w, h = p.wrap(width - 2 * x, y)
+        if y - h < 30:
+            c.showPage()
+            y = height - 30
+        p.drawOn(c, x, y - h)
+        return y - h - 10
+
+    y = height - 30
+    # Titre
+    y = draw_paragraph("<b>Devis cabinet Sashou</b>", 72, y, style_bold)
+    # Informations de base
+    y = draw_paragraph(f"Date d'aujourd'hui: {devis_data.get('Date d\'aujourd\'hui', '')}", 72, y, style_normal)
+    y = draw_paragraph(f"Nom et Prénom: {devis_data.get('Nom et Prénom', '')}", 72, y, style_normal)
+    y = draw_paragraph(f"Mutuelle: {devis_data.get('Mutuelle', '')}", 72, y, style_normal)
+    y = draw_paragraph(f"Prochain Rendez-vous: {devis_data.get('Prochain Rendez-vous', '')}", 72, y, style_normal)
+    y = draw_paragraph(f"Praticien: {devis_data.get('Praticien', '')}", 72, y, style_normal)
+    y = draw_paragraph("<b>Soins prévus:</b>", 72, y, style_bold)
+    soins = devis_data.get("Soins prévus", [])
+    if isinstance(soins, list):
+        soins_text = ", ".join(soins)
+    else:
+        soins_text = soins
+    y = draw_paragraph(soins_text, 72, y, style_normal)
+    # Détails complémentaires pour chaque soin
+    for key, value in devis_data.items():
+        if key not in ["Titre", "Date d'aujourd'hui", "Nom et Prénom", "Mutuelle", "Prochain Rendez-vous", "Praticien", "Soins prévus"]:
+            y = draw_paragraph(f"{key}: {value}", 72, y, style_normal)
+    c.drawString(72, 40, "Les cabinets Sashou, à très vite !")
+    c.save()
 
 #Fonction pour générer Conseils Patients 
 def generate_hygiene_pdf(data, filename):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
     styles = getSampleStyleSheet()
+    # Réduction de la taille de police pour le PDF
     style_normal = styles['Normal']
-    style_normal.fontSize = 12
-    style_normal.leading = 14
+    style_normal.fontSize = 10
+    style_normal.leading = 12
     style_normal.textColor = colors.black
 
     style_bold = ParagraphStyle(
         name='Bold',
-        fontSize=14,
-        leading=18,
+        fontSize=12,
+        leading=14,
         textColor=colors.black,
         spaceAfter=10,
         spaceBefore=10,
@@ -34,6 +89,9 @@ def generate_hygiene_pdf(data, filename):
     )
 
     def draw_paragraph(text, x, y, bold=False):
+        # Remplacer chaque "- " par un retour à la ligne suivi de "-" pour forcer le saut de ligne.
+        # Utilisation de <br/> pour un meilleur rendu avec ReportLab
+        text = text.replace("- ", "<br/>- ")
         style = style_bold if bold else style_normal
         p = Paragraph(text, style)
         w, h = p.wrap(width - 2 * x, y)
@@ -50,22 +108,91 @@ def generate_hygiene_pdf(data, filename):
     y = draw_paragraph(f"Prochain Rendez-vous: {data.get('Prochain Rendez-vous', '')}", 72, y, bold=True)
     y = draw_paragraph(f"Praticien: {data.get('Praticien', '')}", 72, y, bold=True)
 
+    # Section Techniques de brossage
     if data.get("IHO Technique de brossage"):
         y = draw_paragraph("Méthode de brossage adaptée à vos besoins:", 72, y, bold=True)
         technique = data.get("IHO Technique de brossage", "")
         technique_texts = {
-            "Bass": "Placer la brosse à 45° par rapport à l’axe vertical de la dent. Diriger une rangée de poils dans le sillon gingivo-dentaire. Exercer une légère pression et effectuer une série de petites vibrations horizontales, sans sortir du sillon. Pour les faces L et P, placer la brosse verticalement. Travailler avec le milieu ou l’arrière de la brosse. Effectuer le même mouvement dent par dent.",
-            "Bass modifié": "Placer la brosse à 45° par rapport à l’axe vertical de la dent. Diriger une rangée de poils dans le sillon gingivo-dentaire. Exercer une légère pression et effectuer une série de petites vibrations horizontales, sans sortir du sillon. Terminer par une rotation LENTE d’un quart de tour en direction des cuspides. Pour les faces L et P, idem que pour la Bass.",
-            "45° Circulaire": "Placer la brosse à 45° par rapport à l’axe vertical de la dent, poils en direction du sillon, à cheval entre le bord marginal de la gencive et le bord cervical de la dent. Exercer une légère pression, afin que les poils s’adaptent à la forme de la dent et s’immiscent le plus possible dans la zone interdentaire. Effectuer une série de petits cercles d’une amplitude de 1-2mm, en restant bien sur le même groupe de dents. Veiller à bien maintenir la régularité d’amplitude de PETITS mouvements! Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
-            "45° Circulaire chassé": "Placer la brosse à 45° par rapport à l’axe vertical de la dent, poils en direction du sillon, à cheval entre le bord marginal de la gencive et le bord cervical de la dent. Exercer une légère pression, afin que les poils s’adaptent à la forme de la dent et s’immiscent le plus possible dans la zone interdentaire. Effectuer une série de petits cercles d’une amplitude de 1-2mm, en restant bien sur le même groupe de dents. Veiller à bien maintenir la régularité d’amplitude de PETITS mouvements! Terminer par une rotation LENTE d’un quart de tour en direction des cuspides. Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
-            "Rolling stroke ou Roll": "Placer la brosse à dent parallèlement à l’axe vertical de la dent, les poils en direction apicale. Appuyer le côté des poils sur la gencive marginale et le bord cervical de la dent. Exercer une une légère pression contre la gencive et effectuer une rotation de la brosse d’un quart de tour. Répéter le mouvement 3 ou 4 fois sur les mêmes dents avant de changer de zone. Pour les faces L et P, placer la brosse verticalement et effectuer les mêmes mouvements, dent par dent.",
-            "Stillman’s": "Placer la brosse à 45°, poils en direction apicale et à cheval entre le bord marginal de la gencive et le bord cervical de la dent. La gencive blanchit sous la pression effectuée. Effectuer une série de petites vibrations horizontales en parcourant lentement la couronne et en faisant lentement une rotation de la brosse d’un quart de tour en maintenant la pression et les vibrations jusqu’aux cuspides. Répéter le mouvement 3-4 fois. Pour les faces L et P, placer la brosse verticalement et travailler dent par dent.",
-            "Charter’s": "Placer la brosse à dent à 45° par rapport à l’axe vertical de la dent, les poils orientés en direction des cuspides. Appuyer le côté des poils sur la gencive attachée et sur la partie cervicale de la dent. La gencive doit blanchir sous la pression effectuée. Effectuer ces pressions et relâchant par à-coup. Faces L et P - méthode difficile à réaliser pour ces zones.",
-            "90° Circulaire": "Placer la brosse à dents 90° par rapport à l’axe verticale de la dent. Les poils sont sur la couronne de la dent à la limite de la gencive.",
-            "Brossage électrique": "La brosse à dent doit rester sur la surface dentaire pendant 1 à 3 secondes."
+            "Bass": """Méthode Bass
+Pour un brossage optimal avec la méthode Bass, placez votre brosse à dents en l’inclinant à 45° vers la gencive. Ensuite, effectuez de petits mouvements de va-et-vient très courts, presque des vibrations, sans bouger la brosse d’une dent à l’autre. Cette technique permet aux poils de bien pénétrer sous la gencive et d’éliminer la plaque dentaire.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Appliquez la brosse sur un groupe de dents et réalisez les petites vibrations.
+<br/>- Face interne : Tenez la brosse droite et réalisez le même mouvement dent par dent.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour bien éliminer les résidus alimentaires.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort afin de ne pas abîmer l’émail des dents et la gencive.""",
+            "Bass modifié": """Méthode Bass modifiée
+La méthode Bass modifiée suit le même principe que la méthode Bass, mais avec une étape supplémentaire. Après avoir effectué les petits mouvements vibratoires, terminez par un balayage vers le bas pour les dents du haut et vers le haut pour celles du bas. Ce geste permet de mieux éliminer la plaque dentaire et les résidus alimentaires.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Réalisez d’abord les vibrations, puis effectuez le balayage.
+<br/>- Face interne : Maintenez la brosse droite et brossez chaque dent une à une.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour bien nettoyer les surfaces.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "45° Circulaire": """Méthode 45° Circulaire
+Avec la méthode 45° Circulaire, placez la brosse à 45° contre la gencive et la dent. Ensuite, effectuez de petits cercles réguliers, en veillant à ne pas appuyer trop fort pour éviter d’irriter la gencive. Cette méthode est idéale pour nettoyer les espaces interdentaires.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Réalisez des cercles réguliers tout le long de l’arcade dentaire.
+<br/>- Face interne : Tenez la brosse droite pour suivre la courbure des dents et effectuez les mêmes cercles.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour bien éliminer les résidus alimentaires.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "45° Circulaire chassé": """Méthode 45° Circulaire chassé
+La méthode 45° Circulaire chassé commence comme la méthode 45° Circulaire, avec de petits cercles. Mais à la fin de chaque série de cercles, la brosse est légèrement tournée vers le bas ou vers le haut pour "chasser" la plaque dentaire hors des espaces interdentaires.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Réalisez des cercles suivis du mouvement de balayage.
+<br/>- Face interne : Maintenez la brosse droite et appliquez la même technique.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour bien éliminer les résidus alimentaires.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "Rolling stroke ou Roll": """Méthode Rolling Stroke (ou Roll)
+La méthode Rolling Stroke consiste à faire rouler la brosse sur la surface des dents. Placez-la à plat contre la gencive et la dent, puis effectuez un mouvement de rotation vers le bas pour les dents du haut et vers le haut pour celles du bas. Répétez ce mouvement plusieurs fois.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Effectuez le mouvement de roulage progressivement sur toute l’arcade.
+<br/>- Face interne : Tenez la brosse droite et appliquez la même technique, dent par dent.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour éliminer les débris alimentaires.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "Stillman’s": """Méthode Stillman’s
+Pour la méthode Stillman’s, tenez la brosse à 45° (légèrement inclinée) vers la gencive et appliquez une légère pression jusqu'à ce que la gencive blanchisse légèrement. Effectuez de petits mouvements de va-et-vient avec une rotation d'un quart de tour et répétez 3 à 4 fois.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Appliquez la brosse sur un groupe de dents et réalisez les petites vibrations.
+<br/>- Face interne : Tenez la brosse droite et réalisez le même mouvement, dent par dent.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour éliminer les résidus.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "Charter’s": """Méthode Charter’s
+La méthode Charter’s consiste à placer la brosse à 45°, avec les poils orientés vers les cuspides (pointes des dents). Appliquez une légère pression sur la gencive et la base de la dent jusqu'à ce que la gencive blanchisse légèrement, puis effectuez de petits mouvements de pression et de relâchement.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Appliquez la brosse sur un groupe de dents et réalisez les petites vibrations.
+<br/>- Face interne : Tenez la brosse droite et réalisez le même mouvement, dent par dent.
+<br/>- Face masticatoire : Effectuez des mouvements de va-et-vient pour éliminer les résidus.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "90° Circulaire": """Méthode 90° Circulaire
+La méthode 90° Circulaire consiste à tenir la brosse perpendiculaire aux dents (90°) et à réaliser de petits cercles réguliers sur chaque dent, permettant un nettoyage efficace tout en préservant l’émail.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Réalisez des cercles réguliers sur toute l’arcade.
+<br/>- Face interne : Tenez la brosse droite et effectuez les mêmes cercles.
+<br/>- Face masticatoire : Réalisez des cercles pour éliminer les débris.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort.""",
+            "Brossage électrique": """Brossage avec une brosse électrique
+Avec une brosse électrique, placez la brosse sur chaque dent et laissez-la agir pendant 1 à 3 secondes sans bouger, puis passez à la dent suivante.
+Veillez à brosser toutes les faces des dents :
+<br/>- Face externe : Laissez la brosse vibrer sur chaque dent.
+<br/>- Face interne : Suivez la courbe des dents.
+<br/>- Face masticatoire : Laissez la brosse vibrer quelques secondes pour éliminer la plaque.
+<br/>Un brossage efficace doit durer au moins deux minutes, matin et soir, en veillant à ne pas appuyer trop fort."""
         }
         y = draw_paragraph(technique_texts.get(technique, data.get("Autre technique de brossage", "")), 72, y)
-
+        
+        # Bloc pour "Conseillé de changé de méthode de brossage"
+        if data.get("IHO Conseillé de changé de méthode de brossage"):
+            type_brosse = data.get("IHO Conseillé de changé de méthode de brossage")
+            extra_text = ""
+            if type_brosse == "Electrique":
+                y = draw_paragraph("Changement de brosse à dents:", 72, y, bold=True)
+                extra_text = "Je vous conseille d'envisager d'acheter une brosse à dents électrique."
+            elif type_brosse == "Manuel":
+                y = draw_paragraph("Changement de brosse à dents:", 72, y, bold=True)
+                extra_text = "Je vous conseille de retourner à une méthode de brossage manuel."
+            if extra_text:
+                y = draw_paragraph(extra_text, 72, y)
+                
+    # Section Bain de bouche
     if data.get("Bain de bouche"):
         y = draw_paragraph("Bain de bouche:", 72, y, bold=True)
         if "CHX" in data.get("Bain de bouche", ""):
@@ -74,54 +201,69 @@ def generate_hygiene_pdf(data, filename):
             y = draw_paragraph(f"Je vous conseille d’utiliser un bain de bouche à base d’eau oxygénée trouvable en pharmacie pendant une durée limitée de {data.get('O2 - Combien de jours')}.", 72, y)
         if "Autre" in data.get("Bain de bouche", ""):
             y = draw_paragraph(data.get("Autre bain de bouche", ""), 72, y)
-
+    
+    # Section Conseil de dentifrice
     if data.get("Conseil de dentifrice"):
         y = draw_paragraph("Conseil de dentifrice:", 72, y, bold=True)
         y = draw_paragraph(data.get("Conseil de dentifrice", ""), 72, y)
-
+    
+    # Section Autre produits d'hygiène
     if data.get("Produits d'hygiène"):
         y = draw_paragraph("Autre produits d'hygiène:", 72, y, bold=True)
         hygiene_products = data.get("Produits d'hygiène")
         if hygiene_products and "Elmex Gel" in hygiene_products:
-            y = draw_paragraph("L’elmex gel trouvable en pharmacie est à utiliser 1x par semaine, à utiliser après le brossage. Appliquer +/- 1g sur le doigt et mettre sur toutes les dents et attendre 2 à 3 min en crachant bien sans rincer.", 72, y)
+            y = draw_paragraph("L’elmex gel, trouvable en pharmacie, est à utiliser 1x par semaine après le brossage. Appliquez environ 1g sur le doigt, étalez-le sur toutes les dents et laissez agir 2 minutes avant de rincer.", 72, y)
         if hygiene_products and "Autre" in hygiene_products:
             y = draw_paragraph(data.get("Autre produits d'hygiène", ""), 72, y)
-
+    
+    # Section Espaces interdentaire
     if data.get("Espaces Interdentaires Maxillaire") or data.get("Espaces Interdentaires Mandibulaire"):
-        y = draw_paragraph("Espace interdentaire:", 72, y, bold=True)
-        y = draw_paragraph("Il est conseillé d’utiliser des brosses interdentaires au moins le soir et tous les jours, celles-ci doivent être changées tous les 10 jours et rester à l’air libre pour qu’elles puissent sécher.", 72, y)
+        y = draw_paragraph("Espaces interdentaire:", 72, y, bold=True)
+        y = draw_paragraph("Il est conseillé d’utiliser les moyens interdentaires le soir. Voici les instructions d'utilisation selon les méthodes sélectionnées :", 72, y)
+        interdental_instructions = {
+            "Fil dentaire": """Utilisation du fil dentaire
+Pour utiliser le fil dentaire de manière efficace, commencez par entourer environ 30 cm de fil autour de votre majeur en enroulant une petite quantité sur chaque doigt (index et pouce) pour que le fil soit tendu. Tenez-le fermement et guidez-le entre les dents. Déplacez-le sous la gencive et autour de chaque dent pour éliminer la plaque.
+Effectuez des mouvements de cisaillement pour entrer et sortir entre les dents.
+Utilisez-le avant le brossage, de préférence tous les soirs.""",
+            "Porte fil": """Utilisation du porte-fil dentaire
+Le porte-fil est une petite poignée avec un fil tendu, facilitant l'accès aux espaces difficiles. Placez le fil sous le porte-fil et tendez-le entre les dents sans le couper. Glissez-le sous la gencive en effectuant des mouvements de cisaillement.
+Utilisez-le avant le brossage, de préférence tous les soirs.""",
+            "Brossettes interdentaires": """Utilisation des brossettes interdentaires
+Les brossettes interdentaires sont de petites brosses conçues pour nettoyer les espaces entre les dents. Choisissez une brossette de la taille appropriée à vos espaces interdentaires. Tenez-la comme un pinceau et insérez-la doucement entre les dents, en la déplaçant pour nettoyer la zone sous la gencive et autour de chaque dent. Il est recommandé de faire plusieurs aller-retours pour éliminer toute plaque ou débris.
+Lors de l’insertion, utilisez des mouvements de cisaillement pour l'insérer et la retirer en douceur.
+Après chaque utilisation, laissez sécher la brossette à l’air libre (sans capuchon) et remplacez-la en moyenne tous les 10 jours ou dès que les poils sont abîmés.
+Utilisez-la avant le brossage, de préférence tous les soirs.""",
+            "Soft pick": """Utilisation des Soft Picks
+Les Soft Picks, dotés de picots en caoutchouc, permettent de nettoyer les espaces interdentaires de manière douce. Insérez délicatement un Soft Pick entre les dents et effectuez des mouvements de cisaillement pour l'introduire et le retirer sans endommager les gencives.
+Utilisez-le avant le brossage, idéalement tous les soirs."""
+        }
+        # Extraction des moyens sélectionnés en vérifiant par mots-clés dans les espaces interdentaire
+        selected_methods = set()
         maxillaire = data.get("Espaces Interdentaires Maxillaire", "").split("\n")
         mandibulaire = data.get("Espaces Interdentaires Mandibulaire", "").split("\n")
+        for line in maxillaire + mandibulaire:
+            lower_line = line.lower()
+            if "fil dentaire" in lower_line:
+                selected_methods.add("Fil dentaire")
+            if "porte fil" in lower_line:
+                selected_methods.add("Porte fil")
+            if "brossettes" in lower_line:
+                selected_methods.add("Brossettes interdentaires")
+            if "soft pick" in lower_line:
+                selected_methods.add("Soft pick")
+        for method in selected_methods:
+            if method in interdental_instructions:
+                y = draw_paragraph(interdental_instructions[method], 72, y)
         for line in maxillaire:
-            y = draw_paragraph(line, 72, y)
+            if line.strip():
+                y = draw_paragraph(line, 72, y)
         for line in mandibulaire:
-            y = draw_paragraph(line, 72, y)
-
+            if line.strip():
+                y = draw_paragraph(line, 72, y)
+                
     c.drawString(72, 40, "Les cabinets Sashou")
     c.save()
 
-# Fonction pour générer un PDF
-def generate_pdf(data, filename):
-    c = canvas.Canvas(filename, pagesize=letter)
-    c.drawString(72, 750, "Rapport Patient")
-    y = 730
-    for key, value in data.items():
-        if key in ["Espaces Interdentaires Maxillaire", "Espaces Interdentaires Mandibulaire"]:
-            c.drawString(72, y, f"{key}:")
-            y -= 15
-            for line in value.split("\n"):
-                if y < 40:  # Check if we need to create a new page
-                    c.showPage()
-                    y = 750
-                c.drawString(72, y, line)
-                y -= 15
-        else:
-            if y < 40:  # Check if we need to create a new page
-                c.showPage()
-                y = 750
-            c.drawString(72, y, f"{key}: {value}")
-            y -= 15
-    c.save()
 
 # Fonction pour calculer l'âge
 def calculate_age(born):
@@ -181,6 +323,8 @@ def prepare_data():
         "Prochain Rendez-vous": prochain_rdv.strftime("%d.%m.%Y %H:%M") if prochain_rdv else None,
         "Date d'aujourd'hui": date_aujourdhui.strftime("%d.%m.%Y") if date_aujourdhui else None,
         "Numéro du Patient": num_patient if num_patient else None,
+	"e-mail": email if email else None,
+        "mutuelle": mutuelle if mutuelle else None,
         "Date de Naissance": date_naissance.strftime("%d.%m.%Y") if date_naissance else None,
 	"Âge": calculate_age(date_naissance) if date_naissance else None,
         "Praticien": praticien if praticien else None,
@@ -277,9 +421,9 @@ def generate_text_report(data):
 st.title("Gestion des Patients")
 
 # Onglets
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Informations Patient", "Praticien", "Anamnèse", "Habitudes Alimentaires",
-    "Hygiène à Domicile", "Examens", "IHO"
+    "Hygiène à Domicile", "Examens", "IHO", "Devis Patient"
 ])
 
 # Onglet 1 : Informations Patient
@@ -296,6 +440,15 @@ with tab1:
     prochain_rdv = datetime.combine(prochain_rdv_date, heure_rdv)
     date_aujourdhui = st.date_input("Date d'aujourd'hui", datetime.today())
     num_patient = st.text_input("Numéro du Patient")
+    email = st.text_input("E-mail")
+    mutuelle_options = [
+        "Mutualité Chrétienne (CM)", "Mutualité Socialiste (Solidaris)",
+        "Mutualité Libérale", "Mutualité Neutre", "Partenamut", "Dentalia",
+        "DKV", "Autre", "Pas de mutuelle", "Patient BIM"
+    ]
+    mutuelle = st.selectbox("Mutuelle", mutuelle_options)
+    if mutuelle == "Autre":
+        mutuelle = st.text_input("Précisez votre mutuelle")
     date_naissance = st.date_input("Date de Naissance", min_value=date(1900, 1, 1), max_value=date.today())
     age = calculate_age(date_naissance) if date_naissance else None
     st.write(f"Âge: {age}" if age else "")
@@ -311,7 +464,7 @@ with tab1:
 
 # Onglet 2 : Praticien
 with tab2:
-    praticien = st.selectbox("Praticien", ["Claessens Sasha", "Autre"])
+    praticien = st.selectbox("Praticien", ["Sasha Claessens", "Autre"])
     if praticien == "Autre":
         praticien = st.text_input("Entrez le nom du praticien")
 
@@ -984,7 +1137,7 @@ with tab6:
 
 	# ACJ Section
     st.write("### ACJ")
-    acj_options = ["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Detartrage", "Surfaçage"]
+    acj_options = ["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Detartrage", "Surfaçage", "Charting"]
     acj_choix = st.multiselect("ACJ Options", acj_options)
 
     if "Detartrage" in acj_choix:
@@ -1001,9 +1154,28 @@ with tab6:
 
     # PF Section
     st.write("### PF")
-    pf = st.text_input("PF")
-    pf_dentiste = st.text_input("PF dentiste")
-    facture = st.text_input("Facturé")
+    pf = st.multiselect(
+    "PF",
+    options=["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Détartrage", "Surfaçage", "Charting"],
+    key="pf_multiselect"
+)
+
+if "Détartrage" in pf:
+    detartrage_options = st.multiselect(
+        "Sélectionnez les codes pour Détartrage",
+        options=["4Q", "Q1 et Q4", "Q2 et Q3", "Q1, Q2, Q3, Q4"],
+        key="detartrage_options"
+    )
+
+if "Surfaçage" in pf:
+    surfacage_options = st.multiselect(
+        "Sélectionnez les codes pour Surfaçage",
+        options=["4Q", "Q1 et Q4", "Q2 et Q3", "Q1, Q2, Q3, Q4"],
+        key="surfacage_options"
+    )
+
+
+    st.header("Examens")
 
 
 # Onglet 7 : IHO
@@ -1114,7 +1286,121 @@ with tab7:
     # Combine the dictionaries
     all_interdental_data = {**maxillaire_data, **mandibulaire_data}
 
-# Buttons
+
+
+# Onglet 8 : Devis Patient
+with tab8:
+    st.write("### Devis Patient")
+    soins_prevus = st.multiselect("Soins prévu pour le patient:", ["Examen parodontal", "Détartrage Supra gingival", "Surfaçage", "Autre"])
+
+    mutuelle = "Votre Mutuelle"  # Example mutuelle, replace with actual data if available
+
+    if "Examen parodontal" in soins_prevus:
+        age = calculate_age(date_naissance)
+        if age < 18 or age > 65:
+            st.error("Attention l’âge de remboursement est dépassé")
+        else:
+            st.success("Remboursement sera accepté")
+        charting_price = 150
+        charting_reimbursement = (90, 120)
+        fee_charting = (charting_price - charting_reimbursement[1], charting_price - charting_reimbursement[0])
+        inami_charting = "Code INAMI: 302751-302761 1x par année civile"
+        st.write(f"💰 **Prix total : {charting_price}€**")
+        st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {charting_reimbursement[0]}€ - {charting_reimbursement[1]}€")
+        st.write(f"🧾 **Frais patient : {fee_charting[0]}€ - {fee_charting[1]}€**")
+        st.write(f"📌 **{inami_charting}**")
+
+    if "Détartrage Supra gingival" in soins_prevus:
+        detartrage_choices = st.multiselect("Options de Détartrage:", ["Q1", "Q2", "Q3", "Q4", "4Q", "Autre"])
+        total_price = 0
+        total_reimbursement = 0
+        for choice in detartrage_choices:
+            if choice == "Q1":
+                detartrage_price = 25
+                detartrage_reimbursement = (20, 25)
+                inami_detartrage = "Code INAMI: 372551-372562"
+            elif choice == "Q2":
+                detartrage_price = 25
+                detartrage_reimbursement = (20, 25)
+                inami_detartrage = "Code INAMI: 372573-372584"
+            elif choice == "Q3":
+                detartrage_price = 25
+                detartrage_reimbursement = (20, 25)
+                inami_detartrage = "Code INAMI: 372595-372606"
+            elif choice == "Q4":
+                detartrage_price = 25
+                detartrage_reimbursement = (20, 25)
+                inami_detartrage = "Code INAMI: 372610-372621"
+            elif choice == "4Q":
+                detartrage_price = 100
+                detartrage_reimbursement = (80, 100)
+                inami_detartrage = "Code INAMI: 372632-372643"
+            elif choice == "Autre":
+                autre_text = st.text_input("Précisez l'option de Détartrage")
+                continue
+            total_price += detartrage_price
+            total_reimbursement += detartrage_reimbursement[1]
+            fee_detartrage = (total_price - total_reimbursement, total_price - detartrage_reimbursement[0])
+            st.write(f"💰 **Prix total : {total_price}€**")
+            st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {total_reimbursement}€ - {detartrage_reimbursement[1]}€")
+            st.write(f"🧾 **Frais patient : {fee_detartrage[0]}€ - {fee_detartrage[1]}€**")
+            st.write(f"📌 **{inami_detartrage}**")
+
+    if "Surfaçage" in soins_prevus:
+        st.error("Attention ! Un examen buccal, un DPSI 3+ doit être attesté et un détartrage supra aussi !")
+        surfacage_choices = st.multiselect("Options de Surfaçage:", ["Q1", "Q2", "Q3", "Q4", "4Q", "Autre"])
+        total_price = 0
+        total_reimbursement = 0
+        for choice in surfacage_choices:
+            if choice == "Q1":
+                surfacage_price = 55
+                surfacage_reimbursement = (40, 55)
+                inami_surfacage = "Code INAMI: 302852-302863"
+            elif choice == "Q2":
+                surfacage_price = 55
+                surfacage_reimbursement = (40, 55)
+                inami_surfacage = "Code INAMI: 372874-372885"
+            elif choice == "Q3":
+                surfacage_price = 55
+                surfacage_reimbursement = (40, 55)
+                inami_surfacage = "Code INAMI: 372896-372900"
+            elif choice == "Q4":
+                surfacage_price = 55
+                surfacage_reimbursement = (40, 55)
+                inami_surfacage = "Code INAMI: 372911-372922"
+            elif choice == "4Q":
+                surfacage_price = 220
+                surfacage_reimbursement = (160, 220)
+                inami_surfacage = "Code INAMI: 372933-372943"
+            elif choice == "Autre":
+                autre_text = st.text_input("Précisez l'option de Surfaçage")
+                continue
+            total_price += surfacage_price
+            total_reimbursement += surfacage_reimbursement[1]
+            fee_surfacage = (total_price - total_reimbursement, total_price - surfacage_reimbursement[0])
+            st.write(f"💰 **Prix total : {total_price}€**")
+            st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {total_reimbursement}€ - {surfacage_reimbursement[1]}€")
+            st.write(f"🧾 **Frais patient : {fee_surfacage[0]}€ - {fee_surfacage[1]}€**")
+            st.write(f"📌 **{inami_surfacage}**")
+
+    if "Autre" in soins_prevus:
+        autre_soins = st.text_input("Précisez les autres soins")
+
+# Add the new tab for generating the patient quote
+with col5:
+    if st.button("Créer devis patient"):
+        data = prepare_data()
+        st.write("Devis cabinet Sashou")
+        st.write(f"Date d'aujourd'hui: {data.get('Date d\'aujourd\'hui', '')}")
+        st.write(f"Nom et Prénom: {data.get('Nom et Prénom', '')}")
+        st.write(f"Mutuelle: {data.get('mutuelle', '')}")
+        st.write(f"Prochain Rendez-vous: {data.get('Prochain Rendez-vous', '')}")
+        st.write(f"Praticien: {data.get('Praticien', '')}")
+        st.write("Soins prévu pour le patient:")
+        for soin in soins_prevus:
+            st.write(f"- {soin}: {data.get(soin, '')}")
+        st.write("Les cabinets de Sashou à très vite")
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
