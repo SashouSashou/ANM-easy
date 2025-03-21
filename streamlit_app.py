@@ -9,63 +9,9 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 import os
 import requests  # Pour interagir avec l'API CBIP
-import json
 
 # Configuration de la page
 st.set_page_config(page_title="Gestion des Patients", layout="wide")
-
-# Banque de données pour les mutuelles
-mutuelle_table = {
-    "Mutualité Chrétienne (CM)": {"détartrage": (50, 60), "surfacage": (60, 70), "parodontal": (20, 30)},
-    "Mutualité Socialiste (Solidaris)": {"détartrage": (60, 70), "surfacage": (70, 80), "parodontal": (25, 35)},
-    "Mutualité Libérale": {"détartrage": (40, 50), "surfacage": (50, 60), "parodontal": (15, 25)},
-    "Mutualité Neutre": {"détartrage": (45, 55), "surfacage": (55, 65), "parodontal": (18, 28)},
-    "Partenamut": {"détartrage": (55, 65), "surfacage": (65, 75), "parodontal": (22, 32)},
-    "Dentalia": {"détartrage": (70, 80), "surfacage": (80, 90), "parodontal": (30, 40)},
-    "DKV": {"détartrage": (65, 75), "surfacage": (75, 85), "parodontal": (28, 38)}
-}
-
-def generate_devis_pdf(devis_data, filename):
-    c = canvas.Canvas(filename, pagesize=letter)
-    width, height = letter
-    styles = getSampleStyleSheet()
-    style_bold = ParagraphStyle(name='Bold', fontSize=12, leading=14, textColor=colors.black, spaceAfter=10, spaceBefore=10, bold=True)
-    style_normal = styles['Normal']
-    style_normal.fontSize = 10
-    style_normal.leading = 12
-    style_normal.textColor = colors.black
-
-    def draw_paragraph(text, x, y, style):
-        p = Paragraph(text, style)
-        w, h = p.wrap(width - 2 * x, y)
-        if y - h < 30:
-            c.showPage()
-            y = height - 30
-        p.drawOn(c, x, y - h)
-        return y - h - 10
-
-    y = height - 30
-    # Titre
-    y = draw_paragraph("<b>Devis cabinet Sashou</b>", 72, y, style_bold)
-    # Informations de base
-    y = draw_paragraph(f"Date d'aujourd'hui: {devis_data.get('Date d\'aujourd\'hui', '')}", 72, y, style_normal)
-    y = draw_paragraph(f"Nom et Prénom: {devis_data.get('Nom et Prénom', '')}", 72, y, style_normal)
-    y = draw_paragraph(f"Mutuelle: {devis_data.get('Mutuelle', '')}", 72, y, style_normal)
-    y = draw_paragraph(f"Prochain Rendez-vous: {devis_data.get('Prochain Rendez-vous', '')}", 72, y, style_normal)
-    y = draw_paragraph(f"Praticien: {devis_data.get('Praticien', '')}", 72, y, style_normal)
-    y = draw_paragraph("<b>Soins prévus:</b>", 72, y, style_bold)
-    soins = devis_data.get("Soins prévus", [])
-    if isinstance(soins, list):
-        soins_text = ", ".join(soins)
-    else:
-        soins_text = soins
-    y = draw_paragraph(soins_text, 72, y, style_normal)
-    # Détails complémentaires pour chaque soin
-    for key, value in devis_data.items():
-        if key not in ["Titre", "Date d'aujourd'hui", "Nom et Prénom", "Mutuelle", "Prochain Rendez-vous", "Praticien", "Soins prévus"]:
-            y = draw_paragraph(f"{key}: {value}", 72, y, style_normal)
-    c.drawString(72, 40, "Les cabinets Sashou, à très vite !")
-    c.save()
 
 #Fonction pour générer Conseils Patients 
 def generate_hygiene_pdf(data, filename):
@@ -102,7 +48,7 @@ def generate_hygiene_pdf(data, filename):
         return y - h - 5
 
     y = height - 30
-    y = draw_paragraph("Conseils d’hygiène bucco-dentaire dans les cabinets Sashou", 72, y, bold=True)
+    y = draw_paragraph("Conseils d’hygiène bucco-dentaire dans les cabinets cabinets dentaires Bettens", 72, y, bold=True)
     y = draw_paragraph(f"Date d'aujourd'hui: {data.get('Date d\'aujourd\'hui', '')}", 72, y, bold=True)
     y = draw_paragraph(f"Nom et Prénom: {data.get('Nom et Prénom', '')}", 72, y, bold=True)
     y = draw_paragraph(f"Prochain Rendez-vous: {data.get('Prochain Rendez-vous', '')}", 72, y, bold=True)
@@ -261,7 +207,7 @@ Utilisez-le avant le brossage, idéalement tous les soirs."""
             if line.strip():
                 y = draw_paragraph(line, 72, y)
                 
-    c.drawString(72, 40, "Les cabinets Sashou")
+    c.drawString(72, 40, "Les cabinets dentaires Bettens")
     c.save()
 
 
@@ -323,8 +269,6 @@ def prepare_data():
         "Prochain Rendez-vous": prochain_rdv.strftime("%d.%m.%Y %H:%M") if prochain_rdv else None,
         "Date d'aujourd'hui": date_aujourdhui.strftime("%d.%m.%Y") if date_aujourdhui else None,
         "Numéro du Patient": num_patient if num_patient else None,
-	"e-mail": email if email else None,
-        "mutuelle": mutuelle if mutuelle else None,
         "Date de Naissance": date_naissance.strftime("%d.%m.%Y") if date_naissance else None,
 	"Âge": calculate_age(date_naissance) if date_naissance else None,
         "Praticien": praticien if praticien else None,
@@ -421,9 +365,9 @@ def generate_text_report(data):
 st.title("Gestion des Patients")
 
 # Onglets
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Informations Patient", "Praticien", "Anamnèse", "Habitudes Alimentaires",
-    "Hygiène à Domicile", "Examens", "IHO", "Devis Patient"
+    "Hygiène à Domicile", "Examens", "IHO"
 ])
 
 # Onglet 1 : Informations Patient
@@ -440,15 +384,6 @@ with tab1:
     prochain_rdv = datetime.combine(prochain_rdv_date, heure_rdv)
     date_aujourdhui = st.date_input("Date d'aujourd'hui", datetime.today())
     num_patient = st.text_input("Numéro du Patient")
-    email = st.text_input("E-mail")
-    mutuelle_options = [
-        "Mutualité Chrétienne (CM)", "Mutualité Socialiste (Solidaris)",
-        "Mutualité Libérale", "Mutualité Neutre", "Partenamut", "Dentalia",
-        "DKV", "Autre", "Pas de mutuelle", "Patient BIM"
-    ]
-    mutuelle = st.selectbox("Mutuelle", mutuelle_options)
-    if mutuelle == "Autre":
-        mutuelle = st.text_input("Précisez votre mutuelle")
     date_naissance = st.date_input("Date de Naissance", min_value=date(1900, 1, 1), max_value=date.today())
     age = calculate_age(date_naissance) if date_naissance else None
     st.write(f"Âge: {age}" if age else "")
@@ -464,7 +399,7 @@ with tab1:
 
 # Onglet 2 : Praticien
 with tab2:
-    praticien = st.selectbox("Praticien", ["Sasha Claessens", "Autre"])
+    praticien = st.selectbox("Praticien", ["Claessens Sasha", "Autre"])
     if praticien == "Autre":
         praticien = st.text_input("Entrez le nom du praticien")
 
@@ -1137,7 +1072,7 @@ with tab6:
 
 	# ACJ Section
     st.write("### ACJ")
-    acj_options = ["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Detartrage", "Surfaçage", "Charting"]
+    acj_options = ["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Detartrage", "Surfaçage"]
     acj_choix = st.multiselect("ACJ Options", acj_options)
 
     if "Detartrage" in acj_choix:
@@ -1154,28 +1089,9 @@ with tab6:
 
     # PF Section
     st.write("### PF")
-    pf = st.multiselect(
-    "PF",
-    options=["ANM", "RX", "EO", "IO", "ED", "IHO", "AirFlow", "Détartrage", "Surfaçage", "Charting"],
-    key="pf_multiselect"
-)
-
-if "Détartrage" in pf:
-    detartrage_options = st.multiselect(
-        "Sélectionnez les codes pour Détartrage",
-        options=["4Q", "Q1 et Q4", "Q2 et Q3", "Q1, Q2, Q3, Q4"],
-        key="detartrage_options"
-    )
-
-if "Surfaçage" in pf:
-    surfacage_options = st.multiselect(
-        "Sélectionnez les codes pour Surfaçage",
-        options=["4Q", "Q1 et Q4", "Q2 et Q3", "Q1, Q2, Q3, Q4"],
-        key="surfacage_options"
-    )
-
-
-    st.header("Examens")
+    pf = st.text_input("PF")
+    pf_dentiste = st.text_input("PF dentiste")
+    facture = st.text_input("Facturé")
 
 
 # Onglet 7 : IHO
@@ -1264,7 +1180,7 @@ with tab7:
             if "Brossettes interdentaires" in selected_methods:
                 brand_options = ["Curaprox", "Interprox", "TePe", "Gum"]
                 selected_brand = st.selectbox(f"Marque Brossettes pour {space}", brand_options, key=f"brand_{location}_{space}")
-                size_options = ["0.6 mm", "0.7 mm", "0.8mm", "1.1mm", "1.3mm", "1.5mm", "1.9mm", "2.2mm", "2.7mm"]
+                size_options = ["0.6 mm", "0.7 mm", "0.8mm", "O.9mm", "1.1mm", "1.3mm", "1.5mm", "1.9mm", "2.2mm", "2.7mm"]
                 selected_size = st.selectbox(f"Taille Brossettes pour {space}", size_options, key=f"size_{location}_{space}")
                 method_details.append(f"Brossettes: {selected_brand}, {selected_size}")
 
@@ -1288,119 +1204,7 @@ with tab7:
 
 
 
-# Onglet 8 : Devis Patient
-with tab8:
-    st.write("### Devis Patient")
-    soins_prevus = st.multiselect("Soins prévu pour le patient:", ["Examen parodontal", "Détartrage Supra gingival", "Surfaçage", "Autre"])
-
-    mutuelle = "Votre Mutuelle"  # Example mutuelle, replace with actual data if available
-
-    if "Examen parodontal" in soins_prevus:
-        age = calculate_age(date_naissance)
-        if age < 18 or age > 65:
-            st.error("Attention l’âge de remboursement est dépassé")
-        else:
-            st.success("Remboursement sera accepté")
-        charting_price = 150
-        charting_reimbursement = (90, 120)
-        fee_charting = (charting_price - charting_reimbursement[1], charting_price - charting_reimbursement[0])
-        inami_charting = "Code INAMI: 302751-302761 1x par année civile"
-        st.write(f"💰 **Prix total : {charting_price}€**")
-        st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {charting_reimbursement[0]}€ - {charting_reimbursement[1]}€")
-        st.write(f"🧾 **Frais patient : {fee_charting[0]}€ - {fee_charting[1]}€**")
-        st.write(f"📌 **{inami_charting}**")
-
-    if "Détartrage Supra gingival" in soins_prevus:
-        detartrage_choices = st.multiselect("Options de Détartrage:", ["Q1", "Q2", "Q3", "Q4", "4Q", "Autre"])
-        total_price = 0
-        total_reimbursement = 0
-        for choice in detartrage_choices:
-            if choice == "Q1":
-                detartrage_price = 25
-                detartrage_reimbursement = (20, 25)
-                inami_detartrage = "Code INAMI: 372551-372562"
-            elif choice == "Q2":
-                detartrage_price = 25
-                detartrage_reimbursement = (20, 25)
-                inami_detartrage = "Code INAMI: 372573-372584"
-            elif choice == "Q3":
-                detartrage_price = 25
-                detartrage_reimbursement = (20, 25)
-                inami_detartrage = "Code INAMI: 372595-372606"
-            elif choice == "Q4":
-                detartrage_price = 25
-                detartrage_reimbursement = (20, 25)
-                inami_detartrage = "Code INAMI: 372610-372621"
-            elif choice == "4Q":
-                detartrage_price = 100
-                detartrage_reimbursement = (80, 100)
-                inami_detartrage = "Code INAMI: 372632-372643"
-            elif choice == "Autre":
-                autre_text = st.text_input("Précisez l'option de Détartrage")
-                continue
-            total_price += detartrage_price
-            total_reimbursement += detartrage_reimbursement[1]
-            fee_detartrage = (total_price - total_reimbursement, total_price - detartrage_reimbursement[0])
-            st.write(f"💰 **Prix total : {total_price}€**")
-            st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {total_reimbursement}€ - {detartrage_reimbursement[1]}€")
-            st.write(f"🧾 **Frais patient : {fee_detartrage[0]}€ - {fee_detartrage[1]}€**")
-            st.write(f"📌 **{inami_detartrage}**")
-
-    if "Surfaçage" in soins_prevus:
-        st.error("Attention ! Un examen buccal, un DPSI 3+ doit être attesté et un détartrage supra aussi !")
-        surfacage_choices = st.multiselect("Options de Surfaçage:", ["Q1", "Q2", "Q3", "Q4", "4Q", "Autre"])
-        total_price = 0
-        total_reimbursement = 0
-        for choice in surfacage_choices:
-            if choice == "Q1":
-                surfacage_price = 55
-                surfacage_reimbursement = (40, 55)
-                inami_surfacage = "Code INAMI: 302852-302863"
-            elif choice == "Q2":
-                surfacage_price = 55
-                surfacage_reimbursement = (40, 55)
-                inami_surfacage = "Code INAMI: 372874-372885"
-            elif choice == "Q3":
-                surfacage_price = 55
-                surfacage_reimbursement = (40, 55)
-                inami_surfacage = "Code INAMI: 372896-372900"
-            elif choice == "Q4":
-                surfacage_price = 55
-                surfacage_reimbursement = (40, 55)
-                inami_surfacage = "Code INAMI: 372911-372922"
-            elif choice == "4Q":
-                surfacage_price = 220
-                surfacage_reimbursement = (160, 220)
-                inami_surfacage = "Code INAMI: 372933-372943"
-            elif choice == "Autre":
-                autre_text = st.text_input("Précisez l'option de Surfaçage")
-                continue
-            total_price += surfacage_price
-            total_reimbursement += surfacage_reimbursement[1]
-            fee_surfacage = (total_price - total_reimbursement, total_price - surfacage_reimbursement[0])
-            st.write(f"💰 **Prix total : {total_price}€**")
-            st.write(f"🩺 **Prise en charge mutuelle ({mutuelle})** : {total_reimbursement}€ - {surfacage_reimbursement[1]}€")
-            st.write(f"🧾 **Frais patient : {fee_surfacage[0]}€ - {fee_surfacage[1]}€**")
-            st.write(f"📌 **{inami_surfacage}**")
-
-    if "Autre" in soins_prevus:
-        autre_soins = st.text_input("Précisez les autres soins")
-
-# Add the new tab for generating the patient quote
-with col5:
-    if st.button("Créer devis patient"):
-        data = prepare_data()
-        st.write("Devis cabinet Sashou")
-        st.write(f"Date d'aujourd'hui: {data.get('Date d\'aujourd\'hui', '')}")
-        st.write(f"Nom et Prénom: {data.get('Nom et Prénom', '')}")
-        st.write(f"Mutuelle: {data.get('mutuelle', '')}")
-        st.write(f"Prochain Rendez-vous: {data.get('Prochain Rendez-vous', '')}")
-        st.write(f"Praticien: {data.get('Praticien', '')}")
-        st.write("Soins prévu pour le patient:")
-        for soin in soins_prevus:
-            st.write(f"- {soin}: {data.get(soin, '')}")
-        st.write("Les cabinets de Sashou à très vite")
-
+# Buttons
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
